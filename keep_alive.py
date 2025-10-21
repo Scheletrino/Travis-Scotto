@@ -8,6 +8,7 @@ def home():
     return "Bot attivo!"
 
 def run():
+    print("🟢 Server Flask avviato")
     app.run(host='0.0.0.0', port=8080)
 
 def keep_alive():
