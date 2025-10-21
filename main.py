@@ -7,10 +7,10 @@ import asyncio
 import shutil
 from datetime import datetime
 from dotenv import load_dotenv
-import glob
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
+print("TOKEN:", TOKEN)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -39,7 +39,7 @@ def autorizzato(interaction):
 
 @bot.event
 async def on_ready():
-    print("✅ Bot avviato come", bot.user)
+    print(f"✅ Bot avviato come {bot.user}")
     await tree.sync()
     bot.loop.create_task(xp_vocale_loop())
     bot.loop.create_task(backup_giornaliero_loop())
@@ -64,10 +64,9 @@ async def on_message(message):
     except FileNotFoundError:
         data = {}
 
-    data.setdefault(server_id, {}).setdefault(user_id, {
-        "text_xp": 0,
-        "voice_xp": 0
-    })
+    data.setdefault(server_id, {}).setdefault(user_id, {})
+    data[server_id][user_id].setdefault("text_xp", 0)
+    data[server_id][user_id].setdefault("voice_xp", 0)
 
     data[server_id][user_id]["text_xp"] += 10
 
@@ -94,10 +93,9 @@ async def xp_vocale_loop():
                     except FileNotFoundError:
                         data = {}
 
-                    data.setdefault(server_id, {}).setdefault(user_id, {
-                        "text_xp": 0,
-                        "voice_xp": 0
-                    })
+                    data.setdefault(server_id, {}).setdefault(user_id, {})
+                    data[server_id][user_id].setdefault("text_xp", 0)
+                    data[server_id][user_id].setdefault("voice_xp", 0)
 
                     data[server_id][user_id]["voice_xp"] += 10
 
@@ -217,6 +215,35 @@ async def aggiungixp(interaction: discord.Interaction, membro: discord.Member, t
     with open("xp_data.json", "w") as f:
         json.dump(data, f, indent=4)
 
-    await interaction.response.send_message(f"✅ Hai aggiunto {quantità} XP **{tipo}** a {membro.mention}.")
+    await interaction.response.send_message(
+        f"✅ Hai aggiunto {quantità} XP **{tipo}** a {membro.mention}."
+    )
 
 @tree.command(name="resetxp", description="Azzera l'XP di un utente (solo admin)")
+@app_commands.describe(membro="Utente da resettare")
+async def resetxp(interaction: discord.Interaction, membro: discord.Member):
+    if not autorizzato(interaction):
+        await interaction.response.send_message("⛔ Non hai il permesso per usare questo comando.", ephemeral=True)
+        return
+
+    user_id = str(membro.id)
+    server_id = str(interaction.guild.id)
+
+    try:
+        with open("xp_data.json", "r") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = {}
+
+    if server_id in data and user_id in data[server_id]:
+        data[server_id][user_id]["text_xp"] = 0
+        data[server_id][user_id]["voice_xp"] = 0
+
+        with open("xp_data.json", "w") as f:
+            json.dump(data, f, indent=4)
+
+        await interaction.response.send_message(f"✅ XP di {membro.mention} azzerato.")
+    else:
+        await interaction.response.send_message("⚠️ Nessun dato XP trovato per questo utente.")
+
+bot.run(TOKEN)
