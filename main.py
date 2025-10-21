@@ -1,3 +1,5 @@
+from keep_alive import keep_alive
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -245,5 +247,7 @@ async def resetxp(interaction: discord.Interaction, membro: discord.Member):
         await interaction.response.send_message(f"✅ XP di {membro.mention} azzerato.")
     else:
         await interaction.response.send_message("⚠️ Nessun dato XP trovato per questo utente.")
+keep_alive()
 
 bot.run(TOKEN)
+
