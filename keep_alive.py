@@ -9,7 +9,7 @@ def home():
 
 def run():
     print("🟢 Server Flask avviato")
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=3000)
 
 def keep_alive():
     t = Thread(target=run)
