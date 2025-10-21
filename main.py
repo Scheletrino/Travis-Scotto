@@ -1,5 +1,3 @@
-from keep_alive import keep_alive
-
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -9,10 +7,10 @@ import asyncio
 import shutil
 from datetime import datetime
 from dotenv import load_dotenv
+from keep_alive import keep_alive  # Importa il server Flask
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-print("TOKEN:", TOKEN)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -29,7 +27,7 @@ def crea_backup_giornaliero():
     timestamp = datetime.now().strftime("%Y%m%d")
     try:
         shutil.copy("xp_data.json", f"backup_xp_{timestamp}.json")
-        print(f"📁 Backup creato: backup_xp_{timestamp}.json")
+        print(f"🟡 Backup creato: backup_xp_{timestamp}.json")
     except Exception as e:
         print(f"❌ Errore nel backup: {e}")
 
@@ -41,7 +39,7 @@ def autorizzato(interaction):
 
 @bot.event
 async def on_ready():
-    print(f"✅ Bot avviato come {bot.user}")
+    print(f"🟢 Bot avviato come {bot.user}")
     await tree.sync()
     bot.loop.create_task(xp_vocale_loop())
     bot.loop.create_task(backup_giornaliero_loop())
@@ -221,33 +219,7 @@ async def aggiungixp(interaction: discord.Interaction, membro: discord.Member, t
         f"✅ Hai aggiunto {quantità} XP **{tipo}** a {membro.mention}."
     )
 
-@tree.command(name="resetxp", description="Azzera l'XP di un utente (solo admin)")
-@app_commands.describe(membro="Utente da resettare")
-async def resetxp(interaction: discord.Interaction, membro: discord.Member):
-    if not autorizzato(interaction):
-        await interaction.response.send_message("⛔ Non hai il permesso per usare questo comando.", ephemeral=True)
-        return
-
-    user_id = str(membro.id)
-    server_id = str(interaction.guild.id)
-
-    try:
-        with open("xp_data.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {}
-
-    if server_id in data and user_id in data[server_id]:
-        data[server_id][user_id]["text_xp"] = 0
-        data[server_id][user_id]["voice_xp"] = 0
-
-        with open("xp_data.json", "w") as f:
-            json.dump(data, f, indent=4)
-
-        await interaction.response.send_message(f"✅ XP di {membro.mention} azzerato.")
-    else:
-        await interaction.response.send_message("⚠️ Nessun dato XP trovato per questo utente.")
+# 🔥 Avvia il server Flask e il bot Discord
 keep_alive()
-
 bot.run(TOKEN)
 
