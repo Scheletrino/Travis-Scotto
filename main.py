@@ -20,7 +20,7 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
-AUTORIZZATI = ["1109770445953183844"]  # ← tuo ID
+AUTORIZZATI = ["1109770445953183844"]
 RUOLI_AUTORIZZATI = ["🔮Manager🔮", "⚜️Head-Admin⚜️", "🚨Retarder🚨", "♦️Staff♦️"]
 
 def crea_backup_giornaliero():
@@ -30,6 +30,12 @@ def crea_backup_giornaliero():
         print(f"📁 Backup creato: backup_xp_{timestamp}.json")
     except Exception as e:
         print(f"❌ Errore nel backup: {e}")
+
+def autorizzato(interaction):
+    return (
+        str(interaction.user.id) in AUTORIZZATI or
+        any(role.name in RUOLI_AUTORIZZATI for role in interaction.user.roles)
+    )
 
 @bot.event
 async def on_ready():
@@ -99,12 +105,6 @@ async def xp_vocale_loop():
                         json.dump(data, f, indent=4)
 
         await asyncio.sleep(120)
-
-def autorizzato(interaction):
-    return (
-        str(interaction.user.id) in AUTORIZZATI or
-        any(role.name in RUOLI_AUTORIZZATI for role in interaction.user.roles)
-    )
 
 @tree.command(name="profilo", description="Mostra il tuo profilo XP")
 async def profilo(interaction: discord.Interaction):
@@ -220,5 +220,3 @@ async def aggiungixp(interaction: discord.Interaction, membro: discord.Member, t
     await interaction.response.send_message(f"✅ Hai aggiunto {quantità} XP **{tipo}** a {membro.mention}.")
 
 @tree.command(name="resetxp", description="Azzera l'XP di un utente (solo admin)")
-@app_commands.describe(membro="Utente da resettare")
-async def resetxp(interaction: discord.Interaction
