@@ -7,6 +7,7 @@ import asyncio
 import shutil
 from datetime import datetime
 from dotenv import load_dotenv
+import glob
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -19,16 +20,16 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
-AUTORIZZATI = ["1109770445953183844"]  # ← Sostituisci con il tuo ID
+AUTORIZZATI = ["1109770445953183844"]  # ← tuo ID
 RUOLI_AUTORIZZATI = ["🔮Manager🔮", "⚜️Head-Admin⚜️", "🚨Retarder🚨", "♦️Staff♦️"]
 
 def crea_backup_giornaliero():
     timestamp = datetime.now().strftime("%Y%m%d")
     try:
         shutil.copy("xp_data.json", f"backup_xp_{timestamp}.json")
-        print(f"📁 Backup giornaliero creato: backup_xp_{timestamp}.json")
+        print(f"📁 Backup creato: backup_xp_{timestamp}.json")
     except Exception as e:
-        print(f"❌ Errore nel backup giornaliero: {e}")
+        print(f"❌ Errore nel backup: {e}")
 
 @bot.event
 async def on_ready():
@@ -41,7 +42,7 @@ async def backup_giornaliero_loop():
     await bot.wait_until_ready()
     while not bot.is_closed():
         crea_backup_giornaliero()
-        await asyncio.sleep(86400)  # ogni 24 ore
+        await asyncio.sleep(86400)
 
 @bot.event
 async def on_message(message):
@@ -57,15 +58,10 @@ async def on_message(message):
     except FileNotFoundError:
         data = {}
 
-    if server_id not in data:
-        data[server_id] = {}
-    if user_id not in data[server_id]:
-        data[server_id][user_id] = {}
-
-    if "text_xp" not in data[server_id][user_id]:
-        data[server_id][user_id]["text_xp"] = 0
-    if "voice_xp" not in data[server_id][user_id]:
-        data[server_id][user_id]["voice_xp"] = 0
+    data.setdefault(server_id, {}).setdefault(user_id, {
+        "text_xp": 0,
+        "voice_xp": 0
+    })
 
     data[server_id][user_id]["text_xp"] += 10
 
@@ -92,15 +88,10 @@ async def xp_vocale_loop():
                     except FileNotFoundError:
                         data = {}
 
-                    if server_id not in data:
-                        data[server_id] = {}
-                    if user_id not in data[server_id]:
-                        data[server_id][user_id] = {}
-
-                    if "text_xp" not in data[server_id][user_id]:
-                        data[server_id][user_id]["text_xp"] = 0
-                    if "voice_xp" not in data[server_id][user_id]:
-                        data[server_id][user_id]["voice_xp"] = 0
+                    data.setdefault(server_id, {}).setdefault(user_id, {
+                        "text_xp": 0,
+                        "voice_xp": 0
+                    })
 
                     data[server_id][user_id]["voice_xp"] += 10
 
@@ -108,6 +99,12 @@ async def xp_vocale_loop():
                         json.dump(data, f, indent=4)
 
         await asyncio.sleep(120)
+
+def autorizzato(interaction):
+    return (
+        str(interaction.user.id) in AUTORIZZATI or
+        any(role.name in RUOLI_AUTORIZZATI for role in interaction.user.roles)
+    )
 
 @tree.command(name="profilo", description="Mostra il tuo profilo XP")
 async def profilo(interaction: discord.Interaction):
@@ -126,7 +123,6 @@ async def profilo(interaction: discord.Interaction):
     xp = text_xp + voice_xp
     livello = xp // 100
     progresso = xp % 100
-
     barra = "█" * (progresso // 10) + "░" * (10 - (progresso // 10))
 
     await interaction.response.send_message(
@@ -167,10 +163,31 @@ async def classifica(interaction: discord.Interaction):
 
     await interaction.response.send_message(messaggio)
 
+@tree.command(name="xp", description="Mostra l'XP totale di un utente")
+@app_commands.describe(membro="Utente da controllare")
+async def xp(interaction: discord.Interaction, membro: discord.Member):
+    user_id = str(membro.id)
+    server_id = str(interaction.guild.id)
+
+    try:
+        with open("xp_data.json", "r") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = {}
+
+    user_data = data.get(server_id, {}).get(user_id, {})
+    text_xp = user_data.get("text_xp", 0)
+    voice_xp = user_data.get("voice_xp", 0)
+    xp = text_xp + voice_xp
+
+    await interaction.response.send_message(
+        f"{membro.mention} ha **{xp} XP** totali (💬 {text_xp}, 🔊 {voice_xp})"
+    )
+
 @tree.command(name="aggiungixp", description="Aggiunge XP a un utente (solo admin)")
 @app_commands.describe(membro="Utente", tipo="testo o voce", quantità="XP da aggiungere")
 async def aggiungixp(interaction: discord.Interaction, membro: discord.Member, tipo: str, quantità: int):
-    if str(interaction.user.id) not in AUTORIZZATI:
+    if not autorizzato(interaction):
         await interaction.response.send_message("⛔ Non hai il permesso per usare questo comando.", ephemeral=True)
         return
 
@@ -187,15 +204,10 @@ async def aggiungixp(interaction: discord.Interaction, membro: discord.Member, t
     except FileNotFoundError:
         data = {}
 
-    if server_id not in data:
-        data[server_id] = {}
-    if user_id not in data[server_id]:
-        data[server_id][user_id] = {}
-
-    if "text_xp" not in data[server_id][user_id]:
-        data[server_id][user_id]["text_xp"] = 0
-    if "voice_xp" not in data[server_id][user_id]:
-        data[server_id][user_id]["voice_xp"] = 0
+    data.setdefault(server_id, {}).setdefault(user_id, {
+        "text_xp": 0,
+        "voice_xp": 0
+    })
 
     if tipo == "testo":
         data[server_id][user_id]["text_xp"] += quantità
@@ -206,4 +218,7 @@ async def aggiungixp(interaction: discord.Interaction, membro: discord.Member, t
         json.dump(data, f, indent=4)
 
     await interaction.response.send_message(f"✅ Hai aggiunto {quantità} XP **{tipo}** a {membro.mention}.")
-bot.run(TOKEN)
+
+@tree.command(name="resetxp", description="Azzera l'XP di un utente (solo admin)")
+@app_commands.describe(membro="Utente da resettare")
+async def resetxp(interaction: discord.Interaction
