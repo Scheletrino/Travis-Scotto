@@ -75,7 +75,7 @@ async def backup_giornaliero_loop():
     await bot.wait_until_ready()
     while not bot.is_closed():
         await crea_backup_giornaliero()
-        await asyncio.sleep(10)  # TEST: ogni 10s. In produzione usa 86400 (24h).
+        await asyncio.sleep(86400)  # TEST: ogni 10s. In produzione usa 86400 (24h).
 
 # =========================
 # XP sistema (messaggi + vocale)
@@ -336,3 +336,4 @@ async def on_ready():
 
 keep_alive()
 bot.run(TOKEN)
+
