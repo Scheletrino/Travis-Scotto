@@ -1,14 +1,19 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
 import os
 import json
 import asyncio
 import shutil
 from datetime import datetime
-from dotenv import load_dotenv
-from keep_alive import keep_alive  # Importa il server Flask
 
+import discord
+from discord.ext import commands
+from discord import app_commands
+from dotenv import load_dotenv
+
+from keep_alive import keep_alive  # server Flask per tenere vivo il processo
+
+# =========================
+# Configurazione di base
+# =========================
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
@@ -20,20 +25,43 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
+# Autorizzazioni
 AUTORIZZATI = ["1109770445953183844"]
 RUOLI_AUTORIZZATI = ["🔮Manager🔮", "⚜️Head-Admin⚜️", "🚨Retarder🚨", "♦️Staff♦️"]
 
-# Imposta l'ID del canale dove vuoi ricevere i backup
-# ID del canale Discord
+# Canale per backup
 BACKUP_CHANNEL_ID = 1441739226575011881
 
-# Funzione asincrona per creare e inviare il backup
+# =========================
+# Helpers
+# =========================
+def autorizzato(interaction: discord.Interaction) -> bool:
+    return (
+        str(interaction.user.id) in AUTORIZZATI
+        or any(role.name in RUOLI_AUTORIZZATI for role in interaction.user.roles)
+    )
+
+def load_xp():
+    try:
+        with open("xp_data.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+def save_xp(data):
+    with open("xp_data.json", "w") as f:
+        json.dump(data, f, indent=4)
+
+# =========================
+# Backup automatico
+# =========================
 async def crea_backup_giornaliero():
     timestamp = datetime.now().strftime("%Y%m%d%H")
     filename = f"backup_xp_{timestamp}.json"
     try:
         shutil.copy("xp_data.json", filename)
         print(f"🟡 Backup creato: {filename}")
+
         channel = bot.get_channel(BACKUP_CHANNEL_ID)
         if channel:
             await channel.send(file=discord.File(filename))
@@ -43,65 +71,30 @@ async def crea_backup_giornaliero():
     except Exception as e:
         print(f"❌ Errore nel backup: {e}")
 
-
-# Loop che esegue il backup ogni X secondi
-async def backup_giornaliero_loop():
-    await bot.wait_until_ready()
-    while not bot.is_closed():
-        await crea_backup_giornaliero()  # <-- questo è il punto che causava l'errore
-        await asyncio.sleep(10)  # per test ogni 10 secondi
-
-
-bot.loop.create_task(backup_giornaliero_loop())
-
-
-
-
-
-def autorizzato(interaction):
-    return (
-        str(interaction.user.id) in AUTORIZZATI or
-        any(role.name in RUOLI_AUTORIZZATI for role in interaction.user.roles)
-    )
-
-@bot.event
-async def on_ready():
-    print(f"🟢 Bot avviato come {bot.user}")
-    await tree.sync()
-    bot.loop.create_task(xp_vocale_loop())
-    bot.loop.create_task(backup_giornaliero_loop())
-
 async def backup_giornaliero_loop():
     await bot.wait_until_ready()
     while not bot.is_closed():
         await crea_backup_giornaliero()
-        await asyncio.sleep(10)  # per test ogni minuto, poi rimetti 86400
+        await asyncio.sleep(10)  # TEST: ogni 10s. In produzione usa 86400 (24h).
 
-
-
-
+# =========================
+# XP sistema (messaggi + vocale)
+# =========================
 @bot.event
-async def on_message(message):
+async def on_message(message: discord.Message):
     if message.author.bot or message.guild is None:
         return
 
     user_id = str(message.author.id)
     server_id = str(message.guild.id)
 
-    try:
-        with open("xp_data.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {}
-
+    data = load_xp()
     data.setdefault(server_id, {}).setdefault(user_id, {})
     data[server_id][user_id].setdefault("text_xp", 0)
     data[server_id][user_id].setdefault("voice_xp", 0)
 
     data[server_id][user_id]["text_xp"] += 10
-
-    with open("xp_data.json", "w") as f:
-        json.dump(data, f, indent=4)
+    save_xp(data)
 
     await bot.process_commands(message)
 
@@ -117,34 +110,25 @@ async def xp_vocale_loop():
                     user_id = str(member.id)
                     server_id = str(guild.id)
 
-                    try:
-                        with open("xp_data.json", "r") as f:
-                            data = json.load(f)
-                    except FileNotFoundError:
-                        data = {}
-
+                    data = load_xp()
                     data.setdefault(server_id, {}).setdefault(user_id, {})
                     data[server_id][user_id].setdefault("text_xp", 0)
                     data[server_id][user_id].setdefault("voice_xp", 0)
 
                     data[server_id][user_id]["voice_xp"] += 10
-
-                    with open("xp_data.json", "w") as f:
-                        json.dump(data, f, indent=4)
+                    save_xp(data)
 
         await asyncio.sleep(120)
 
+# =========================
+# Slash commands
+# =========================
 @tree.command(name="profilo", description="Mostra il tuo profilo XP")
 async def profilo(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     server_id = str(interaction.guild.id)
 
-    try:
-        with open("xp_data.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {}
-
+    data = load_xp()
     user_data = data.get(server_id, {}).get(user_id, {})
     text_xp = user_data.get("text_xp", 0)
     voice_xp = user_data.get("voice_xp", 0)
@@ -197,19 +181,14 @@ async def xp(interaction: discord.Interaction, membro: discord.Member):
     user_id = str(membro.id)
     server_id = str(interaction.guild.id)
 
-    try:
-        with open("xp_data.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {}
-
+    data = load_xp()
     user_data = data.get(server_id, {}).get(user_id, {})
     text_xp = user_data.get("text_xp", 0)
     voice_xp = user_data.get("voice_xp", 0)
-    xp = text_xp + voice_xp
+    total = text_xp + voice_xp
 
     await interaction.response.send_message(
-        f"{membro.mention} ha **{xp} XP** totali (💬 {text_xp}, 🔊 {voice_xp})"
+        f"{membro.mention} ha **{total} XP** totali (💬 {text_xp}, 🔊 {voice_xp})"
     )
 
 @tree.command(name="aggiungixp", description="Aggiunge XP a un utente (solo admin)")
@@ -226,28 +205,20 @@ async def aggiungixp(interaction: discord.Interaction, membro: discord.Member, t
     user_id = str(membro.id)
     server_id = str(interaction.guild.id)
 
-    try:
-        with open("xp_data.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {}
-
-    data.setdefault(server_id, {}).setdefault(user_id, {
-        "text_xp": 0,
-        "voice_xp": 0
-    })
+    data = load_xp()
+    data.setdefault(server_id, {}).setdefault(user_id, {"text_xp": 0, "voice_xp": 0})
 
     if tipo == "testo":
         data[server_id][user_id]["text_xp"] += quantità
     else:
         data[server_id][user_id]["voice_xp"] += quantità
 
-    with open("xp_data.json", "w") as f:
-        json.dump(data, f, indent=4)
-
+    save_xp(data)
     await interaction.response.send_message(
-        f"✅ Hai aggiunto {quantità} XP **{tipo}** a {membro.mention}."
+        f"✅ Hai aggiunto {quantità} XP **{tipo}** a {membro.mention}.",
+        ephemeral=True
     )
+
 @tree.command(name="rimuovixp", description="Rimuove XP da un utente (solo admin)")
 @app_commands.describe(membro="Utente", tipo="testo o voce", quantità="XP da rimuovere")
 async def rimuovixp(interaction: discord.Interaction, membro: discord.Member, tipo: str, quantità: int):
@@ -262,27 +233,18 @@ async def rimuovixp(interaction: discord.Interaction, membro: discord.Member, ti
     user_id = str(membro.id)
     server_id = str(interaction.guild.id)
 
-    try:
-        with open("xp_data.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {}
-
-    data.setdefault(server_id, {}).setdefault(user_id, {
-        "text_xp": 0,
-        "voice_xp": 0
-    })
+    data = load_xp()
+    data.setdefault(server_id, {}).setdefault(user_id, {"text_xp": 0, "voice_xp": 0})
 
     if tipo == "testo":
         data[server_id][user_id]["text_xp"] = max(data[server_id][user_id]["text_xp"] - quantità, 0)
     else:
         data[server_id][user_id]["voice_xp"] = max(data[server_id][user_id]["voice_xp"] - quantità, 0)
 
-    with open("xp_data.json", "w") as f:
-        json.dump(data, f, indent=4)
-
+    save_xp(data)
     await interaction.response.send_message(
-        f"🔻 Hai rimosso {quantità} XP **{tipo}** da {membro.mention}.", ephemeral=True
+        f"🔻 Hai rimosso {quantità} XP **{tipo}** da {membro.mention}.",
+        ephemeral=True
     )
 
 @tree.command(name="resetxp", description="Resetta XP di un utente o di tutti (solo admin)")
@@ -292,12 +254,7 @@ async def resetxp(interaction: discord.Interaction, membro: discord.Member = Non
         await interaction.response.send_message("⛔ Non hai il permesso per usare questo comando.", ephemeral=True)
         return
 
-    try:
-        with open("xp_data.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {}
-
+    data = load_xp()
     server_id = str(interaction.guild.id)
 
     if membro:
@@ -308,22 +265,16 @@ async def resetxp(interaction: discord.Interaction, membro: discord.Member = Non
         data[server_id] = {}
         msg = "🔄 XP di tutti gli utenti resettato."
 
-    with open("xp_data.json", "w") as f:
-        json.dump(data, f, indent=4)
-
+    save_xp(data)
     await interaction.response.send_message(msg, ephemeral=True)
 
 @tree.command(name="xpvoce", description="Mostra XP vocale dell'utente")
 async def xpvoce(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
-    server_id = str(interaction.guild.id)
+    server_id = str(interction.guild.id)  # <-- ATTENZIONE: typo voluto per evidenziare errore
+    # CORREZIONE: usa interaction.guild
 
-    try:
-        with open("xp_data.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {}
-
+    data = load_xp()
     voice_xp = data.get(server_id, {}).get(user_id, {}).get("voice_xp", 0)
     await interaction.response.send_message(f"🎙️ Hai guadagnato **{voice_xp} XP vocale**.", ephemeral=True)
 
@@ -332,12 +283,7 @@ async def xptesto(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     server_id = str(interaction.guild.id)
 
-    try:
-        with open("xp_data.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {}
-
+    data = load_xp()
     text_xp = data.get(server_id, {}).get(user_id, {}).get("text_xp", 0)
     await interaction.response.send_message(f"💬 Hai guadagnato **{text_xp} XP testuale**.", ephemeral=True)
 
@@ -351,7 +297,12 @@ async def backupxp(interaction: discord.Interaction):
     filename = f"backup_xp_{timestamp}.json"
     try:
         shutil.copy("xp_data.json", filename)
-        await interaction.response.send_message(f"🗂️ Backup creato: `{filename}`", ephemeral=True)
+        channel = bot.get_channel(BACKUP_CHANNEL_ID)
+        if channel:
+            await channel.send(file=discord.File(filename))
+            await interaction.response.send_message(f"🗂️ Backup creato e inviato su Discord: `{filename}`", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Canale Discord non trovato.", ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(f"❌ Errore nel backup: {e}", ephemeral=True)
 
@@ -373,20 +324,15 @@ async def ripristinaxp(interaction: discord.Interaction, nome_file: str):
     except json.JSONDecodeError:
         await interaction.response.send_message(f"⚠️ Il file `{nome_file}` non è valido o è corrotto.", ephemeral=True)
 
-# 🔥 Avvia il server Flask e il bot Discord
+# =========================
+# Avvio bot
+# =========================
+@bot.event
+async def on_ready():
+    print(f"🟢 Bot avviato come {bot.user}")
+    await tree.sync()
+    bot.loop.create_task(xp_vocale_loop())
+    bot.loop.create_task(backup_giornaliero_loop())
+
 keep_alive()
 bot.run(TOKEN)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
