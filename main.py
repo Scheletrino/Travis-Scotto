@@ -52,6 +52,7 @@ async def backup_giornaliero_loop():
         await asyncio.sleep(10)  # per test ogni 10 secondi
 
 
+bot.loop.create_task(backup_giornaliero_loop())
 
 
 
@@ -375,6 +376,7 @@ async def ripristinaxp(interaction: discord.Interaction, nome_file: str):
 # 🔥 Avvia il server Flask e il bot Discord
 keep_alive()
 bot.run(TOKEN)
+
 
 
 
