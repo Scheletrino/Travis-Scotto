@@ -43,6 +43,7 @@ async def crea_backup_giornaliero():
     except Exception as e:
         print(f"❌ Errore nel backup: {e}")
 
+
 # Loop che esegue il backup ogni X secondi
 async def backup_giornaliero_loop():
     await bot.wait_until_ready()
@@ -374,6 +375,7 @@ async def ripristinaxp(interaction: discord.Interaction, nome_file: str):
 # 🔥 Avvia il server Flask e il bot Discord
 keep_alive()
 bot.run(TOKEN)
+
 
 
 
