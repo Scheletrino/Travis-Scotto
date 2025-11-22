@@ -24,19 +24,24 @@ AUTORIZZATI = ["1109770445953183844"]
 RUOLI_AUTORIZZATI = ["🔮Manager🔮", "⚜️Head-Admin⚜️", "🚨Retarder🚨", "♦️Staff♦️"]
 
 # Imposta l'ID del canale dove vuoi ricevere i backup
-BACKUP_CHANNEL_ID = 1441739226575011881  # <-- sostituisci con l'ID del tuo canale staff
+BACKUP_CHANNEL_ID = 1441739226575011881 # <-- metti qui l'ID del tuo canale staff
 
 async def crea_backup_giornaliero():
-    timestamp = datetime.now().strftime("%Y%m%d")
+    timestamp = datetime.now().strftime("%Y%m%d%H")  # aggiungo ora per evitare sovrapposizioni
     filename = f"backup_xp_{timestamp}.json"
     try:
         shutil.copy("xp_data.json", filename)
         print(f"🟡 Backup creato: {filename}")
+
         channel = bot.get_channel(BACKUP_CHANNEL_ID)
         if channel:
             await channel.send(file=discord.File(filename))
+            print(f"📤 Backup inviato su Discord: {filename}")
+        else:
+            print("❌ Canale Discord non trovato")
     except Exception as e:
         print(f"❌ Errore nel backup: {e}")
+
 
 
 
@@ -58,6 +63,7 @@ async def backup_giornaliero_loop():
     while not bot.is_closed():
         await crea_backup_giornaliero()
         await asyncio.sleep(60)  # per test ogni minuto
+
 
 
 @bot.event
@@ -356,6 +362,7 @@ async def ripristinaxp(interaction: discord.Interaction, nome_file: str):
 # 🔥 Avvia il server Flask e il bot Discord
 keep_alive()
 bot.run(TOKEN)
+
 
 
 
