@@ -24,16 +24,32 @@ AUTORIZZATI = ["1109770445953183844"]
 RUOLI_AUTORIZZATI = ["🔮Manager🔮", "⚜️Head-Admin⚜️", "🚨Retarder🚨", "♦️Staff♦️"]
 
 # Imposta l'ID del canale dove vuoi ricevere i backup
-BACKUP_CHANNEL_ID = 1441739226575011881  # tuo canale staff
+# ID del canale Discord
+BACKUP_CHANNEL_ID = 1441739226575011881
 
-@bot.event
-async def on_ready():
-    print(f"🟢 Bot avviato come {bot.user}")
-    channel = bot.get_channel(BACKUP_CHANNEL_ID)
-    if channel:
-        await channel.send("✅ Test: il bot riesce a scrivere qui!")
-    else:
-        print("❌ Canale non trovato")
+# Funzione asincrona per creare e inviare il backup
+async def crea_backup_giornaliero():
+    timestamp = datetime.now().strftime("%Y%m%d%H")
+    filename = f"backup_xp_{timestamp}.json"
+    try:
+        shutil.copy("xp_data.json", filename)
+        print(f"🟡 Backup creato: {filename}")
+        channel = bot.get_channel(BACKUP_CHANNEL_ID)
+        if channel:
+            await channel.send(file=discord.File(filename))
+            print(f"📤 Backup inviato su Discord: {filename}")
+        else:
+            print("❌ Canale Discord non trovato")
+    except Exception as e:
+        print(f"❌ Errore nel backup: {e}")
+
+# Loop che esegue il backup ogni X secondi
+async def backup_giornaliero_loop():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        await crea_backup_giornaliero()
+        await asyncio.sleep(10)  # per test ogni 10 secondi
+
 
 
 
@@ -358,6 +374,7 @@ async def ripristinaxp(interaction: discord.Interaction, nome_file: str):
 # 🔥 Avvia il server Flask e il bot Discord
 keep_alive()
 bot.run(TOKEN)
+
 
 
 
