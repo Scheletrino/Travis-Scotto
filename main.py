@@ -48,7 +48,7 @@ async def crea_backup_giornaliero():
 async def backup_giornaliero_loop():
     await bot.wait_until_ready()
     while not bot.is_closed():
-        await crea_backup_giornaliero()
+        await crea_backup_giornaliero()  # <-- questo è il punto che causava l'errore
         await asyncio.sleep(10)  # per test ogni 10 secondi
 
 
@@ -375,6 +375,7 @@ async def ripristinaxp(interaction: discord.Interaction, nome_file: str):
 # 🔥 Avvia il server Flask e il bot Discord
 keep_alive()
 bot.run(TOKEN)
+
 
 
 
